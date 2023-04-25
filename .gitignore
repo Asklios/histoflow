@@ -1,0 +1,9 @@
+/venv/
+/.idea/
+
+/input/
+/output/
+/segmentation/
+/tiles/
+/training/mask_bi/
+/training/tiles/
