@@ -9,6 +9,7 @@ from skimage import feature, future
 from sklearn.ensemble import RandomForestClassifier
 from functools import partial
 
+from notify import notify
 from settings import *
 
 masks_path = 'training/mask_bi/'
@@ -65,3 +66,5 @@ for image in image_files:
 features = features_func(full_data)
 clf = future.fit_segmenter(full_mask, features, clf)
 dump((clf, features_func), MODEL_PATH)
+
+notify('Model trained.')

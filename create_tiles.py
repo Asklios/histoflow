@@ -1,56 +1,105 @@
-import os
+import os.path
 
 import PIL
-import numpy as np
 from PIL import Image
-from numpy import array
+import numpy as np
+from skimage import measure
 
+from notify import notify
 from settings import *
 
-PIL.Image.MAX_IMAGE_PIXELS = 10000000000  # allow huge images
 
-# Process each image in input folder
-for image_filename in os.listdir(INPUT_FOLDER):
-    if not image_filename.endswith(".tif"):
-        continue
-    print(f"Processing image: {image_filename}")
-    # Load input image
-    image_path = os.path.join(INPUT_FOLDER, image_filename)
-    with Image.open(image_path, "r") as im:
-        data: array = np.array(im)
-
-    image_width = data.shape[0]
-    image_height = data.shape[1]
-
-    tile_rows = (image_width + OVERLAP_SIZE) // (TILE_SIZE - OVERLAP_SIZE)
-    tile_cols = (image_height + OVERLAP_SIZE) // (TILE_SIZE - OVERLAP_SIZE)
-
-    final_width = tile_rows * (TILE_SIZE - OVERLAP_SIZE) + OVERLAP_SIZE
-    final_height = tile_cols * (TILE_SIZE - OVERLAP_SIZE) + OVERLAP_SIZE
-
-    with open(f"tiles/{image_filename}.txt", "w") as f:
-        f.write(f"{TILE_SIZE} {OVERLAP_SIZE}\n")
-        f.write(f"{image_width} {image_height} {final_width} {final_height}")
-
-    for i in range(tile_rows):
-        for j in range(tile_cols):
-            x_start = i * (TILE_SIZE - OVERLAP_SIZE)
-            y_start = j * (TILE_SIZE - OVERLAP_SIZE)
-            x_end = min(x_start + TILE_SIZE, image_width)
-            y_end = min(y_start + TILE_SIZE, image_height)
-            tile = data[x_start:x_end, y_start:y_end, :]
-            if tile.shape[0] < TILE_SIZE or tile.shape[1] < TILE_SIZE:
-                # pad tile with zeros
-                tile = np.pad(tile, ((0, TILE_SIZE - tile.shape[0]), (0, TILE_SIZE - tile.shape[1]), (0, 0)),
-                              mode="constant")
-            tile_filename = f"{image_filename.removesuffix('tif')}_{i}_{j}.tif"
-            tile_path = os.path.join(TILES_FOLDER, tile_filename)
-            with Image.fromarray(tile) as im:
-                im.save(tile_path)
+PIL.Image.MAX_IMAGE_PIXELS = 10000000000
 
 
+def add_overlap(tiles: [()]):
+    # add overlap to the tiles
+    new_tiles = []
+    for t in tiles:
+        x, y, w, h = t
+        x -= OVERLAP
+        y -= OVERLAP
+        w += 2 * OVERLAP
+        h += 2 * OVERLAP
+
+        # check if x or y is negative
+        if x < 0:
+            w += x
+            x = 0
+        if y < 0:
+            h += y
+            y = 0
+
+        new_tiles.append((x, y, w, h))
+    return new_tiles
 
 
+def create_tiles(image_path, mask_path):
+
+    # check if files exist
+    if not os.path.exists(mask_path):
+        print(f"Mask {mask_path} does not exist.")
+        exit(0)
+
+    mask = np.array(Image.open(mask_path).convert("L"))
+    mask = mask.repeat(2, axis=0).repeat(2, axis=1)  # double the size of the mask since it is 1/2 the size of the image
+
+    orig_image_width, orig_image_height = mask.shape[:2]
+
+    # crop the mask to the contours
+    contour = measure.find_contours(mask, 1)[0]
+    con_y_min, con_x_min = np.min(contour, axis=0).astype(int)
+    con_y_max, con_x_max = np.max(contour, axis=0).astype(int)
+
+    image_width = con_x_max - con_x_min
+    image_height = con_y_max - con_y_min
+
+    tile_cols = image_width // TILE_SIZE + 1
+    tile_rows = image_height // TILE_SIZE + 1
+
+    new_width = tile_cols * TILE_SIZE
+    new_height = tile_rows * TILE_SIZE
+
+    left_minus = (new_width - image_width) // 2
+    top_minus = (new_height - image_height) // 2
+
+    x_correction = con_x_min - left_minus
+    y_correction = con_y_min - top_minus
+
+    # Generate min tiles
+    tiles = []
+    for row in range(tile_rows):
+        for col in range(tile_cols):
+            x = col * TILE_SIZE + x_correction
+            y = row * TILE_SIZE + y_correction
+
+            w = TILE_SIZE
+            h = TILE_SIZE
+            tile = mask[y:y + h, x:x + w]
+            if tile.sum() > 0:
+                tiles.append((x, y, w, h))
+
+    tiles = add_overlap(tiles)
+
+    image_name = os.path.basename(image_path).split(".")[0]
+    image = np.array(Image.open(image_path))
+
+    with open(f'{TILES_FOLDER}/{image_name}.txt', 'w') as file:
+        file.write(f'{image_path}\n')
+        file.write(f'overlap: {OVERLAP}\n')
+        file.write(f'{orig_image_width},{orig_image_height}\n')
+        for i, tile in enumerate(tiles):
+            file.write(f'{image_name}_{i}.tif: {tile[0]},{tile[1]},{tile[2]},{tile[3]}\n')
+
+            # save tile as mask
+            tile_image = image[tile[1]:tile[1] + tile[3], tile[0]:tile[0] + tile[2]]
+            tile_image = Image.fromarray(tile_image)
+            tile_image.save(f'{TILES_FOLDER}/{image_name}_{i}.tif')
 
 
+for im in os.listdir(INPUT_FOLDER):
+    if im.endswith(".tif"):
+        create_tiles(os.path.join(INPUT_FOLDER, im), os.path.join(MASK_FOLDER, im.removesuffix(".tif") + "_mask.tif"))
 
+
+notify("Server finished creating tiles.")

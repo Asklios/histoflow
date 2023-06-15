@@ -8,6 +8,7 @@ from joblib import load
 from numpy import array
 from skimage import future
 
+from notify import notify
 from settings import *
 
 PIL.Image.MAX_IMAGE_PIXELS = 10000000000  # allow huge images
@@ -36,3 +37,5 @@ for image_filename in os.listdir(TILES_FOLDER):
     output_path = os.path.join(SEGMENTATION_FOLDER, image_filename)
     Image.fromarray(segmentation).save(output_path)
     print(f"Saved segmentation for image: {image_filename}")
+
+notify("Server finished Segmentation.")
