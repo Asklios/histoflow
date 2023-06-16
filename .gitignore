@@ -3,9 +3,10 @@
 
 /input/
 /output/
-/masks/
+/mask/
 /segmentation/
 /tiles/
 /training/
+/visualizations/
 
 notify.py
