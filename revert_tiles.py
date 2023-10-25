@@ -2,37 +2,40 @@ import os
 import numpy as np
 from PIL import Image
 
-TILES_FOLDER = "segmentation/"
-OUTPUT_FOLDER = "output/"
 
-if not os.path.exists(OUTPUT_FOLDER):
-    os.makedirs(OUTPUT_FOLDER)
+def revert_tiles(tiles_folder, output_folder):
+    for file in os.listdir(tiles_folder):
+        if file.endswith(".txt"):
+            print(file)
+            with open(os.path.join(tiles_folder, file), "r") as f:
+                lines = f.readlines()
+                image_name = lines[0].strip().removeprefix("./input/")
+                overlap = int(lines[2].split(":")[1].strip())
+                image_height, image_width = map(int, lines[3].strip().split(","))
+                lines = lines[4:]
 
-for file in os.listdir(TILES_FOLDER):
-    if file.endswith(".txt"):
-        print(file)
-        with open(os.path.join(TILES_FOLDER, file), "r") as f:
-            lines = f.readlines()
-            image_name = lines[0].strip().removeprefix("./input/")
-            overlap = int(lines[1].split(":")[1].strip())
-            image_height, image_width = map(int, lines[2].strip().split(","))
-            lines = lines[3:]
+                image = Image.new("L", (image_width, image_height), color=0)
+                for line in lines:
+                    tile_name = line.split(':')[0]
+                    x, y, w, h = map(int, line.split(':')[1].strip().split(","))
 
-            image = Image.new("L", (image_width, image_height), color=0)
-            for line in lines:
-                tile_name = line.split(':')[0]
-                x, y, w, h = map(int, line.split(':')[1].strip().split(","))
+                    # if file does not exist, skip
+                    if not os.path.isfile(os.path.join(tiles_folder, tile_name)):
+                        continue
 
-                tile = np.array(Image.open(os.path.join(TILES_FOLDER, tile_name)))
+                    tile = np.array(Image.open(os.path.join(tiles_folder, tile_name)))
 
-                # correct for edge tiles
-                if x + w > image_width:
-                    w = image_width - x
-                    tile = tile[:, :w]
-                if y + h > image_height:
-                    h = image_height - y
-                    tile = tile[:h, :]
+                    # correct for edge tiles
+                    if x + w > image_width:
+                        w = image_width - x
+                        tile = tile[:, :w]
+                    if y + h > image_height:
+                        h = image_height - y
+                        tile = tile[:h, :]
 
-                image.paste(Image.fromarray(tile), (x, y, x + w, y + h))
+                    try:
+                        image.paste(Image.fromarray(tile), (x, y, x + w, y + h))
+                    except ValueError:
+                        pass  # TODO fix this
 
-        image.save(os.path.join(OUTPUT_FOLDER, image_name))
+            image.save(os.path.join(output_folder, file.removesuffix(".txt") + ".tif"))

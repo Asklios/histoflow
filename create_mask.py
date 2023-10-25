@@ -1,17 +1,48 @@
 import os
-from numba import jit, cuda, prange
-import numpy as np
-from numpy import array
-from scipy import ndimage as nd
 import PIL
 from PIL import Image
-from notify import notify
-
+import cv2
+import numpy as np
+from numpy import array
+from numba import jit, cuda, prange
+from scipy import ndimage as nd
 from timeit import default_timer as timer
 
-from settings import *
+from helper import request_yes_no
 
 PIL.Image.MAX_IMAGE_PIXELS = 10000000000
+
+
+def create_mask_input(input_folder, mask_input_folder):
+
+    # check if mask_input folder is empty
+    if len(os.listdir(mask_input_folder)) != 0:
+        print('Warning: mask input folder is not empty. Continuing will remove existing files. Continue? (y/n)')
+
+        if not request_yes_no():
+            print('Exiting...')
+            exit(0)
+
+        # delete all files in mask folder
+        for file in os.listdir(mask_input_folder):
+            os.remove(os.path.join(mask_input_folder, file))
+
+    for filename in [f for f in os.listdir(input_folder) if os.path.isfile(os.path.join(input_folder, f))]:
+        # Load image
+        im = Image.open(os.path.join(input_folder, filename), 'r')
+        img: array = np.array(im)
+
+        # Convert to grayscale
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # Scale down by 0.5
+        scaled = cv2.resize(gray, None, fx=0.5, fy=0.5, interpolation=cv2.INTER_AREA)
+
+        # Apply Gaussian blur with kernel size 101
+        blurred = cv2.GaussianBlur(scaled, (101, 101), 0)
+
+        # Save to output directory
+        cv2.imwrite(os.path.join(mask_input_folder, filename), blurred)
 
 
 @jit(target_backend='cuda', nopython=True, cache=True, parallel=True)
@@ -63,14 +94,25 @@ def separate(input_data: array, mask: array, median):
     return o
 
 
-files = [f for f in os.listdir(MASK_INPUT_FOLDER) if os.path.isfile(os.path.join(MASK_INPUT_FOLDER, f))]
+def create_mask(mask_input_folder: str, mask_folder: str):
 
-for file_name in files:
-    if file_name.endswith('.tif'):
-        print(file_name)
-        notify('Creating mask for ' + file_name)
+    # check if mask folder is empty
+    if len(os.listdir(mask_folder)) != 0:
+        print('Warning: mask folder is not empty. Continuing will remove existing files. Continue? (y/n)')
+        if not request_yes_no():
+            print('Exiting...')
+            exit(0)
 
-        im = Image.open(os.path.join(MASK_INPUT_FOLDER, file_name), 'r')
+        # delete all files in mask folder
+        for file in os.listdir(mask_folder):
+            os.remove(os.path.join(mask_folder, file))
+
+    files = [f for f in os.listdir(mask_input_folder) if os.path.isfile(os.path.join(mask_input_folder, f))]
+
+    for file_name in files:
+        print('Creating mask for: ' + file_name)
+
+        im = Image.open(os.path.join(mask_input_folder, file_name), 'r')
         data: array = np.array(im)
 
         start = timer()
@@ -79,7 +121,7 @@ for file_name in files:
 
         output = select_threshold(data, nd_median, nd_mean)
 
-        print('stage 1 took: ' + str(timer() - start))
+        print('stage 1 took: ' + str(round((timer() - start), 2)))
         start = timer()
 
         s = nd.generate_binary_structure(2, 2)  # consider diagonal neighbors
@@ -88,7 +130,6 @@ for file_name in files:
 
         if num_features > 1:
             for index in prange(1, num_features):
-                print(index)
                 if np.sum(labeled_array == index) > data.size * 0.1:
                     la = la_to_int(labeled_array == index)
                     output += la
@@ -96,13 +137,9 @@ for file_name in files:
             output = labeled_array
         output[output > 0] = 255
 
-        if not os.path.exists(MASK_FOLDER):
-            os.makedirs(MASK_FOLDER)
+        if not os.path.exists(mask_folder):
+            os.makedirs(mask_folder)
 
         file = Image.fromarray(output)
-        file.save(os.path.join(MASK_FOLDER, file_name.removesuffix('.tif') + '_mask.tif'))
-        print('stage 2 took: ' + str(timer() - start))
-        # cv2.imwrite(os.path.join(MASK_FOLDER, file_name.removesuffix('.tif') + '_mask.tif'), output)
-
-print('done')
-notify('Server finished creating masks')
+        file.save(os.path.join(mask_folder, file_name.removesuffix('.tif') + '_mask.tif'))
+        print('stage 2 took: ' + str(round((timer() - start), 2)))

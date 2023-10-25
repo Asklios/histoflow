@@ -1,0 +1,10 @@
+@software{histoflow,
+  author = {Jakob Voerkelius},
+  title = {Histoflow},
+  version = {1.0.0},
+  year = {2023},
+  month = {10},
+  url = {https://github.com/asklios/histoflow},
+  orcid = {0009-0003-1630-2265},
+  license = {MIT}
+}
