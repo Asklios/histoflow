@@ -12,23 +12,19 @@ PIL.Image.MAX_IMAGE_PIXELS = 10000000000
 
 def add_overlap(tiles: [()], overlap: int):
     # add overlap to the tiles
-    new_tiles = []
+    new_tiles = []  # (x, y, w, h, l, t)
     for t in tiles:
         x, y, w, h = t
-        x -= overlap
-        y -= overlap
-        w += 2 * overlap
-        h += 2 * overlap
+        left_overlap = max(0, min(overlap, x))
+        x -= left_overlap
 
-        # check if x or y is negative
-        if x < 0:
-            w += x
-            x = 0
-        if y < 0:
-            h += y
-            y = 0
+        top_overlap = max(0, min(overlap, y))
+        y -= top_overlap
 
-        new_tiles.append((x, y, w, h))
+        w += left_overlap + overlap
+        h += top_overlap + overlap
+
+        new_tiles.append((x, y, w, h, left_overlap, top_overlap))
     return new_tiles
 
 
@@ -93,8 +89,9 @@ def create_tiles(input_folder, mask_folder, tiles_folder, tile_size, overlap):
             file.write(f'tile_size: {tile_size}\n')
             file.write(f'overlap: {overlap}\n')
             file.write(f'{orig_image_width},{orig_image_height}\n')
+            file.write(f'x, y, width, height, left, top\n')
             for i, tile in enumerate(tiles):
-                file.write(f'{image_name}_{i}.tif: {tile[0]},{tile[1]},{tile[2]},{tile[3]}\n')
+                file.write(f'{image_name}_{i}.tif: {tile[0]},{tile[1]},{tile[2]},{tile[3]},{tile[4]},{tile[5]}\n')
 
                 # save tile as mask
                 tile_image = image[tile[1]:tile[1] + tile[3], tile[0]:tile[0] + tile[2]]

@@ -69,7 +69,7 @@ elif args.data == '.':
     for folder in data_folders:
         os.makedirs(os.path.join('data', folder), exist_ok=True)
 elif os.path.exists(args.data):
-    print('Data directory found, creating missing subdirectories')
+    print('Data directory found, creating subdirectories if missing')
     for folder in data_folders:
         os.makedirs(os.path.join(args.data, folder), exist_ok=True)
 else:

@@ -1,10 +1,20 @@
-@software{histoflow,
-  author = {Jakob Voerkelius},
-  title = {Histoflow},
-  version = {1.0.0},
-  year = {2023},
-  month = {10},
-  url = {https://github.com/asklios/histoflow},
-  orcid = {0009-0003-1630-2265},
-  license = {MIT}
-}
+cff-version: 1.2.0
+title: Histoflow
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Jakob
+    family-names: Voerkelius
+    orcid: 'https://orcid.org/0009-0003-1630-2265'
+repository-code: 'https://github.com/asklios/histoflow'
+abstract: >-
+  Segmentation of histological images through machine
+  learning
+keywords:
+  - histology
+  - randomforest
+license: MIT
+version: 1.1.0
+date-released: '2023-10-25'
